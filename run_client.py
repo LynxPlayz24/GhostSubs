@@ -64,20 +64,29 @@ if __name__ == '__main__':
               "while --enable_translation uses M2M100 for any-to-any. "
               "Both will be active.")
 
+    def save_to_overlay(text, segments):
+        recent = segments[-2:]
+        lines = "\n".join(seg["text"].strip() for seg in recent if seg.get("text", "").strip())
+        with open("translation.txt", "w", encoding="utf-8") as f:
+            f.write(lines + "\n")
+
     client = TranscriptionClient(
         args.server,
         args.port,
         lang=args.lang,
         translate=args.translate,
-        model=args.model,                                  # also support hf_model => `Systran/faster-whisper-small`
+        model=args.model,
         use_vad=True,
-        save_output_recording=args.save_output_recording,  # Only used for microphone input, False by Default
-        output_recording_filename=args.output_file,        # Only used for microphone input
-        mute_audio_playback=args.mute_audio_playback,      # Only used for file input, False by Default
-        enable_translation=args.enable_translation,        # Enable translation of the transcription output
-        target_language=args.target_language,              # Target language for translation, e.g., "fr
+        save_output_recording=args.save_output_recording,
+        output_recording_filename=args.output_file,
+        mute_audio_playback=args.mute_audio_playback,
+        enable_translation=args.enable_translation,
+        target_language=args.target_language,
+        transcription_callback=save_to_overlay,
+        translation_callback=save_to_overlay,
         enable_timestamps=args.enable_timestamps,
         display_segments=args.n_display_segments,
+        same_output_threshold=5,
     )
 
     if args.files is None:

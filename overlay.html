@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+body {
+    background: transparent;
+    overflow: hidden;
+}
+
+#subtitle {
+    color: white;
+    font-size: 42px;
+    font-family: Arial;
+    font-weight: bold;
+    text-align: center;
+    text-shadow:
+        3px 3px 5px black;
+}
+</style>
+</head>
+
+<body>
+
+<div id="subtitle">
+Loading...
+</div>
+
+<script>
+async function updateSubtitle() {
+    let response = await fetch(
+        "http://127.0.0.1:5000/subtitle"
+    );
+
+    let data = await response.json();
+
+    document.getElementById("subtitle").innerHTML =
+        data.text;
+}
+
+setInterval(updateSubtitle, 200);
+</script>
+
+</body>
+</html>

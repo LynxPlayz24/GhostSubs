@@ -225,22 +225,18 @@ class Client:
 
                 if self.enable_translation:
                     print(f"\n\nTRANSLATION to {self.target_language}:")
+                    
                     utils.print_transcript([
                         {"start": seg["start"], "end": seg["end"], "text": seg["text"]}
                         for seg in self.translated_transcript[-self.display_segments:]
                     ], timestamps=True)
 
-            else:
-                original_text = [seg["text"] for seg in self.transcript[-self.display_segments:]]
-                if self.last_segment is not None and self.last_segment["text"] not in original_text:
-                    original_text.append(self.last_segment["text"])
-                utils.clear_screen()
-                utils.print_transcript(original_text)
+                    translated_text = "\n".join(
+                        [seg["text"] for seg in self.translated_transcript[-4:]]
+                    )
 
-                if self.enable_translation:
-                    print(f"\n\nTRANSLATION to {self.target_language}:")
-                    utils.print_transcript([seg["text"] for seg in self.translated_transcript[-self.display_segments:]], translated=True)
-
+                    with open("translation.txt", "w", encoding="utf-8") as f:
+                        f.write(translated_text)
 
     def on_message(self, ws, message):
         """
@@ -443,6 +439,7 @@ class TranscriptionTeeClient:
                 channels=self.channels,
                 rate=self.rate,
                 input=True,
+                input_device_index=1,
                 frames_per_buffer=self.chunk,
             )
         except OSError as error:
