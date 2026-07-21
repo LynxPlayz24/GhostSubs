@@ -7,7 +7,7 @@ echo.
 
 REM Start the WhisperLive server in a new window
 echo [1/3] Starting WhisperLive Server...
-start "WhisperLive Server" cmd /k "cd /d %~dp0 && call venv\Scripts\activate && python run_server.py --backend faster_whisper"
+start "WhisperLive Server" cmd /k "cd /d %~dp0 && call venv\Scripts\activate && python run_server.py --backend faster_whisper --omp_num_threads 6"
 
 REM Start the screen overlay
 echo [2/3] Starting Subtitle Overlay...
