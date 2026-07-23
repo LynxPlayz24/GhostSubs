@@ -6,6 +6,12 @@ echo   (large-v3-turbo ASR + OPUS-MT Translation)
 echo ====================================================
 echo.
 
+REM Reset subtitle files on startup
+if exist "translation.txt" del /f /q "translation.txt"
+if exist "transcription.txt" del /f /q "transcription.txt"
+echo Loading subtitles...> "translation.txt"
+echo Loading subtitles...> "transcription.txt"
+
 REM Start the WhisperLive server in a new window
 echo [1/3] Starting WhisperLive Server (Backend: faster_whisper)...
 start "WhisperLive Server" cmd /k "cd /d %~dp0 && call venv\Scripts\activate && python run_server.py --backend faster_whisper --omp_num_threads 6 --max_connection_time 86400"

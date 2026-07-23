@@ -12,9 +12,18 @@ import os
 import sys
 
 TRANSLATION_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "translation.txt")
+TRANSCRIPTION_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "transcription.txt")
 POLL_MS = 50
 MIN_FONT = 16
 MAX_FONT = 48
+
+# Clear old translation/transcription files on startup & write initial placeholder
+for filepath in (TRANSLATION_FILE, TRANSCRIPTION_FILE):
+    try:
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write("Loading subtitles...\n")
+    except Exception:
+        pass
 
 
 class SubtitleOverlay:
@@ -52,7 +61,7 @@ class SubtitleOverlay:
         self.font_size = 18
         self._text_id = self.canvas.create_text(
             self.w // 2, self.h // 2,
-            text="Waiting for subtitles...",
+            text="Loading subtitles...",
             fill="white",
             font=("Arial", self.font_size, "bold"),
             width=self.w - 60,
