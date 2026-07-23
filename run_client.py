@@ -55,6 +55,10 @@ if __name__ == '__main__':
                           type=int,
                           default=4,
                           help='Number of transcript segments to display in terminal (default: 4).')
+    parser.add_argument('--initial_prompt',
+                          type=str,
+                          default=None,
+                          help='Initial prompt for the whisper model (e.g., to guide context or translation).')
 
     args = parser.parse_args()
 
@@ -64,7 +68,15 @@ if __name__ == '__main__':
               "while --enable_translation uses M2M100 for any-to-any. "
               "Both will be active.")
 
-    def save_to_overlay(text, segments):
+    def save_transcription(text, segments):
+        """Save Japanese transcription to a debug file."""
+        recent = segments[-2:]
+        lines = "\n".join(seg["text"].strip() for seg in recent if seg.get("text", "").strip())
+        with open("transcription.txt", "w", encoding="utf-8") as f:
+            f.write(lines + "\n")
+
+    def save_translation(text, segments):
+        """Save English translation to the overlay file."""
         recent = segments[-2:]
         lines = "\n".join(seg["text"].strip() for seg in recent if seg.get("text", "").strip())
         with open("translation.txt", "w", encoding="utf-8") as f:
@@ -77,17 +89,18 @@ if __name__ == '__main__':
         translate=args.translate,
         model=args.model,
         use_vad=True,
-        vad_parameters={"threshold": 0.3, "min_speech_duration_ms": 100, "min_silence_duration_ms": 500},
+        vad_parameters={"threshold": 0.4, "min_speech_duration_ms": 100, "min_silence_duration_ms": 200},
         save_output_recording=args.save_output_recording,
         output_recording_filename=args.output_file,
         mute_audio_playback=args.mute_audio_playback,
         enable_translation=args.enable_translation,
         target_language=args.target_language,
-        transcription_callback=save_to_overlay,
-        translation_callback=save_to_overlay,
+        transcription_callback=save_transcription,
+        translation_callback=save_translation,
         enable_timestamps=args.enable_timestamps,
         display_segments=args.n_display_segments,
-        same_output_threshold=5,
+        same_output_threshold=3,
+        initial_prompt=args.initial_prompt,
     )
 
     try:

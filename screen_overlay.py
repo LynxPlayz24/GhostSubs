@@ -12,7 +12,7 @@ import os
 import sys
 
 TRANSLATION_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "translation.txt")
-POLL_MS = 200
+POLL_MS = 50
 MIN_FONT = 16
 MAX_FONT = 48
 

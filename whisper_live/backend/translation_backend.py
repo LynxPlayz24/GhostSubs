@@ -1,3 +1,4 @@
+import os
 import json
 import logging
 import threading
@@ -5,9 +6,7 @@ import time
 import queue
 from typing import Dict, Any, Optional
 import torch
-import threading
-from transformers import M2M100ForConditionalGeneration
-from whisper_live.backend.tokenization_small100 import SMALL100Tokenizer
+from transformers import MarianMTModel, MarianTokenizer
 
 from whisper_live.backend.base import ServeClientBase
 
@@ -15,18 +14,24 @@ from whisper_live.backend.base import ServeClientBase
 class ServeClientTranslation(ServeClientBase):
     """
     Handles translation of completed transcription segments in a separate thread.
+    Uses Helsinki-NLP OPUS-MT models (~74M params) for fast JA->EN translation.
     Reads from a queue populated by the transcription backend and sends translated
     segments back to the client via WebSocket.
     """
+    
+    # Class-level model cache to avoid loading multiple copies
+    _model_lock = threading.Lock()
+    _shared_model = None
+    _shared_tokenizer = None
     
     def __init__(
         self,
         client_uid,
         websocket,
         translation_queue,
-        target_language="fr", 
+        target_language="en", 
         send_last_n_segments=10,
-        model_name="alirezamsh/small100"
+        model_name="Helsinki-NLP/opus-mt-ja-en",
     ):
         """
         Initialize the translation client.
@@ -35,9 +40,9 @@ class ServeClientTranslation(ServeClientBase):
             client_uid (str): Unique identifier for the client
             websocket: WebSocket connection to the client
             translation_queue (queue.Queue): Queue containing completed segments to translate
-            target_language (str): Target language code (default: "fr" for French)
+            target_language (str): Target language code (default: "en" for English)
             send_last_n_segments (int): Number of recent translated segments to send
-            model_name (str): Translation model name to use
+            model_name (str): OPUS-MT model from HuggingFace (default: ja->en)
         """
         super().__init__(client_uid, websocket, send_last_n_segments)
         self.translation_queue = translation_queue
@@ -46,57 +51,70 @@ class ServeClientTranslation(ServeClientBase):
         self.translated_segments = []
         self.translation_model = None
         self.tokenizer = None
-        self.device = None
         self.model_loaded = False
         self.load_translation_model()
         
     def load_translation_model(self):
-        """Load the translation model and tokenizer."""
+        """Load the OPUS-MT translation model (~74M params, fast on CPU)."""
         try:
-            self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-            logging.info(f"Loading translation model on device: {self.device}")
-            
-            self.translation_model = M2M100ForConditionalGeneration.from_pretrained(
-                self.model_name
-            ).to(self.device)
-            self.tokenizer = SMALL100Tokenizer.from_pretrained(self.model_name)
-            self.tokenizer.tgt_lang = self.target_language
-            
-            self.model_loaded = True
-            logging.info(f"Translation model loaded successfully. Target language: {self.target_language}")
+            with ServeClientTranslation._model_lock:
+                # Reuse shared model if already loaded by another client
+                if ServeClientTranslation._shared_model is not None:
+                    self.translation_model = ServeClientTranslation._shared_model
+                    self.tokenizer = ServeClientTranslation._shared_tokenizer
+                    self.model_loaded = True
+                    logging.info("Reusing shared OPUS-MT translation model")
+                    return
+                
+                logging.info(f"Loading OPUS-MT translation model: {self.model_name}")
+                
+                # Load tokenizer and model
+                self.tokenizer = MarianTokenizer.from_pretrained(self.model_name)
+                self.translation_model = MarianMTModel.from_pretrained(self.model_name)
+                self.translation_model.eval()  # Set to inference mode
+                
+                # Cache for reuse across clients
+                ServeClientTranslation._shared_model = self.translation_model
+                ServeClientTranslation._shared_tokenizer = self.tokenizer
+                
+                param_count = sum(p.numel() for p in self.translation_model.parameters()) / 1e6
+                logging.info(f"OPUS-MT model loaded ({param_count:.0f}M params, CPU inference)")
+                self.model_loaded = True
+                
         except Exception as e:
             logging.error(f"Failed to load translation model: {e}")
+            import traceback
+            traceback.print_exc()
             self.translation_model = None
             self.tokenizer = None
             self.model_loaded = False
     
     def translate_text(self, text: str) -> str:
         """
-        Translate a single text segment.
+        Translate a single text segment using OPUS-MT.
         
         Args:
-            text (str): Text to translate
+            text (str): Text to translate (Japanese)
             
         Returns:
-            str: Translated text or original text if translation fails
+            str: Translated text (English) or original text if translation fails
         """
         if not self.model_loaded or not text.strip():
             return text
             
         try:
-            # Encode input and move to device
-            encoded_input = self.tokenizer(text, return_tensors="pt").to(self.device)
-            
-            # Generate translation
+            # Tokenize and translate
+            encoded = self.tokenizer(text, return_tensors="pt", padding=True, truncation=True, max_length=512)
             with torch.no_grad():
-                generated_tokens = self.translation_model.generate(**encoded_input)
-            
-            # Decode output
-            output = self.tokenizer.batch_decode(generated_tokens, skip_special_tokens=True)
-            return output[0] if output else text
+                outputs = self.translation_model.generate(
+                    **encoded, 
+                    max_new_tokens=256, 
+                    num_beams=2,
+                )
+            return self.tokenizer.decode(outputs[0], skip_special_tokens=True)
             
         except Exception as e:
-            logging.error(f"Translation failed for text '{text}': {e}")
+            logging.error(f"Translation failed for text '{text[:50]}...': {e}")
             return text
     
     def process_translation_queue(self):
@@ -186,14 +204,13 @@ class ServeClientTranslation(ServeClientBase):
     def set_target_language(self, language: str):
         """
         Change the target language for translation.
+        Note: OPUS-MT models are language-pair specific.
         
         Args:
             language (str): New target language code
         """
         self.target_language = language
-        if self.tokenizer:
-            self.tokenizer.tgt_lang = language
-            logging.info(f"Target language changed to: {language}")
+        logging.info(f"Target language set to: {language}")
     
     def cleanup(self):
         """Clean up translation resources."""
@@ -206,13 +223,4 @@ class ServeClientTranslation(ServeClientBase):
             pass
         
         self.translated_segments.clear()
-        
-        if self.translation_model:
-            del self.translation_model
-            self.translation_model = None
-        if self.tokenizer:
-            del self.tokenizer
-            self.tokenizer = None
-        
-        if self.device and self.device.type == 'cuda':
-            torch.cuda.empty_cache()
+        # Note: shared model/tokenizer are kept alive for other clients
