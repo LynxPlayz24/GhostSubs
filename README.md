@@ -2,28 +2,29 @@
 
 A live, low-latency Japanese-to-English subtitle overlay system for your desktop.
 
-GhostSubs runs a transparent, always-on-top subtitle bar that floats over any application (like your browser or a game). It captures live Japanese audio (e.g., from a livestream using a virtual audio cable), transcribes it, translates it to English using Whisper, and displays the subtitles in real-time.
+GhostSubs runs a transparent, always-on-top subtitle bar that floats over any application (like your browser, a game, or media player). It captures live Japanese audio (e.g., from a livestream using a virtual audio cable), transcribes it, translates it to English using a hybrid AI pipeline, and displays the subtitles in real-time.
 
 ## Features
-- **Real-Time Translation**: Uses Whisper's built-in translation to convert Japanese speech to English text with minimal latency.
-- **YouTube-Style Subtitles**: Shows only the last two lines of dialogue so your screen doesn't get cluttered.
-- **Transparent Desktop Overlay**: A draggable, resizable (via scroll wheel) overlay that sits on top of everything. No OBS needed if you're just watching!
-- **One-Click Startup**: Everything launches automatically via `start_all.bat`.
+- **Hybrid Real-Time Translation Pipeline**: Combines `large-v3-turbo` for high-accuracy Japanese speech recognition with `OPUS-MT` (`Helsinki-NLP/opus-mt-ja-en`) for lightweight, low-latency (~100-150ms) Japanese-to-English translation.
+- **Ultra Low-Latency Streaming**: Tuned VAD thresholds, audio buffer accumulation, and fast UI polling (~600ms–1s end-to-end delay).
+- **YouTube-Style Subtitles**: Displays recent lines of dialogue clearly without cluttering your screen.
+- **Transparent Desktop Overlay**: A draggable, resizable (via mouse scroll wheel) overlay that sits on top of all windows.
+- **One-Click Startup**: Launch the entire pipeline (server, overlay UI, and streaming client) via `start_all.bat`.
 
 ## Prerequisites
-1. **Python**
-2. **VB Audio Cable** (or similar virtual audio cable to route audio into the program)
-3. Installed dependencies (see original WhisperLive requirements)
+1. **Python 3.10+**
+2. **VB-Audio Virtual Cable** (or similar virtual audio cable to route system/browser audio into the microphone input)
+3. **PyTorch & Dependencies** (see `requirements.txt`)
 
 ## How to Run
 
-1. Double click `start_all.bat`.
+1. Double-click `start_all.bat`.
 2. This will launch:
-   - The backend Whisper transcription server
-   - The desktop subtitle overlay
-   - The client that listens to your audio and feeds it to the server
-3. You can click and drag the subtitle bar anywhere on your screen. Use your **scroll wheel** to make the text larger or smaller. Right-click to close the overlay.
+   - **WhisperLive Backend Server**: Runs `large-v3-turbo` ASR + `OPUS-MT` translation.
+   - **Desktop Subtitle Overlay UI**: Transparent floating window.
+   - **Translation Client**: Streams audio input to the backend server.
+3. Drag the subtitle bar anywhere on your screen. Use your **mouse scroll wheel** over the bar to resize the text. Right-click to close.
 
 ---
 
-*Note: This project is a heavily modified, low-latency overlay fork of the original [WhisperLive](https://github.com/collabora/WhisperLive) project by Collabora.*
+*Note: This project is a low-latency, hybrid translation overlay fork built on top of [WhisperLive](https://github.com/collabora/WhisperLive).*
